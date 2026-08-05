@@ -5,7 +5,7 @@
     {
       "name": "google-sites-builder",
       "source": "./",
-      "description": "Скилл сборки сайтов на Google Sites через playwright-cli: прототип → чистая сборка → публикация, за ≤2 часа"
+      "description": "Скилл сборки сайтов на Google Sites через playwright-cli: прототип → чистая сборка → публикация"
     }
   ]
 }
