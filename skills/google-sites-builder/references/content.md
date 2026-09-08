@@ -72,6 +72,18 @@ if (await opt.count()) { await rc(opt); await page.waitForTimeout(900);
 
 Verify links by counting anchors in the tile: `tile.evaluate(el => [...el.querySelectorAll('[role=link],a')].map(a=>a.innerText.trim()))`.
 
+### Build link lines by inserting the link, not by linking pre-typed text
+
+In the **footer** (Small text), the "type the label, select it with `Home`+`Shift+End`, then Insert
+link" flow leaves the label **duplicated**: the real-click on *Insert link* drops the selection, so
+Sites inserts a fresh link and the typed text stays next to it ("Cookie Policy Cookie Policy").
+
+Reliable footer/link-list recipe: type only the non-link lines (e.g. the copyright), then for each
+link press `Control+End` → `Enter` → **Insert link** with *no selection* → pick the page → **Apply**.
+Sites inserts a clean link whose text is the page name. Refocus the footer tile between links (the
+caret is lost after Apply). In normal-size body text the select-then-link flow does work, so this
+matters mostly for the footer.
+
 ## Footer (site-wide)
 
 Scroll to the very bottom; hover the area below the last section to reveal **Add Footer**, and real-click it (it's a pill button, coordinate-click if the locator misses). The footer is **shared across all pages**, so build it once. Fill it like any text tile: a copyright/disclaimer line plus links to every policy page (same Insert-link flow). Remember you can't link the footer to the current page from that page — add the last link from another page.

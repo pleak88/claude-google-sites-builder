@@ -28,6 +28,53 @@ The live URL is then `https://sites.google.com/view/<address>/home`.
 
 Subsequent publishes show a **"Review changes and publish"** dialog instead of the address form — just real-click its **Publish** button. Find the Publish button *inside the dialog* (there are two "Publish" texts on screen; use the one within `[role=dialog]`).
 
+### The re-publish dialog's Publish button is in its top-right corner
+
+On "Review changes and publish" the dialog is full-screen (Draft vs Currently published preview),
+and its **Publish** button sits at the **top right** (~`1384,32` at a 1440x900 viewport). A locator
+scoped to `[role=dialog]` finds two "Publish" texts and the second one has a **null bounding box**,
+so `rc(btns.nth(n-1))` silently does nothing and the dialog stays open — the publish never happens
+(easy to miss: the editor looks normal afterwards). Click the top-right corner by coordinates, then
+assert `document.querySelectorAll('[role=dialog]').length === 0`.
+
+
+## Read the real page slugs BEFORE hard-coding any URL
+
+Sites derives a page slug from its title and **drops `&` and other punctuation**: "Terms & Conditions"
+becomes `/terms-conditions`, not `/terms-and-conditions`. Anything that hard-codes a URL (the modal's
+`Continue` href, cross-page links, verification scripts) must use the real slugs, taken from the live
+nav after the first publish:
+
+```js
+[...new Set([...document.querySelectorAll('a')].map(a => a.getAttribute('href') || '')
+  .filter(h => /\/view\/<address>\//.test(h)))]
+```
+
+## Verify with one script, not by eyeballing
+
+Run a single pass over every page and assert the numbers — this is what catches a wrong slug (404), a
+missing footer, or a page that never got its text:
+
+```js
+for (const slug of slugs) {
+  const r = await page.goto(base + '/' + slug); await page.waitForTimeout(3200);
+  const d = await page.evaluate(() => ({
+    h1: (document.querySelector('h1') || {}).innerText || null,
+    chars: document.body.innerText.length,
+    imgs: document.images.length,
+    imgWidths: [...document.images].map(i => Math.round(i.getBoundingClientRect().width)),
+    embeds: document.querySelectorAll('iframe').length,
+    footerLinks: [...new Set([...document.querySelectorAll('a')].map(a => a.getAttribute('href') || '')
+      .filter(h => /\/view\//.test(h)))].length,
+    hscroll: document.documentElement.scrollWidth > document.documentElement.clientWidth,
+  }));
+  out.push({ slug, status: r.status(), ...d });
+}
+```
+
+Assert: every page 200, expected `h1`, footer links on all pages, `embeds === 1` only on the page with
+the modal, content images at full column width, and `hscroll === false` at both 1440 and 390.
+
 ## Verify
 
 - Load the live URL in a fresh tab and screenshot desktop (1440×900).
@@ -43,3 +90,9 @@ Remember: verify on the **live** URL, but make all edits on the **/edit** URL. D
 ## Cleanup
 
 After the Playwright work, per the playwright-cli skill: `playwright-cli -s=gsites close`, remove `.playwright-cli/` and any `_*.png` / `_*.js` temp files you created. Keep the session open only if the user is likely to ask for immediate follow-up edits.
+
+## Slugs with diacritics / non-Latin titles
+
+Sites derives slugs from page titles verbatim, so Greek or accented titles give `/αρχική`, `/υπεύθυνο-παιχνίδι`
+(URL-encoded). `verify.tpl.js` therefore collects the real slugs from the live nav + footer first and ignores
+the plan keys; point the modal CTA at the published **root** (`/view/<address>`), never at `/home`.

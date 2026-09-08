@@ -27,7 +27,10 @@ const ins = dlg2.locator('button,[role=button]').filter({ hasText: /^Insert$/ })
 if (await ins.count()) await rc(ins);
 ```
 
-The embed lands as a **new section** after the focused one.
+The embed lands as a **new section**. Where exactly depends on focus: with a section focused by a click
+in its **bottom** area it lands right after that section; with nothing focused (or the caret inside a
+text tile in edit mode) it can land directly under the header instead — see
+`references/interactions.md` → "Where a new block actually lands".
 
 ## Editing an existing embed's code
 
@@ -73,25 +76,66 @@ for (let it=0; it<4; it++) {
 
 A block **taller than the screen** pushes its centered card below the visible centre. So don't overshoot: aim the embed height at roughly **one viewport height** (~720–850px on a laptop) so the card sits at screen-centre. If you overshoot (e.g. 1200px), shrink back down (drag the bottom handle up, scrolling so it's in view). The reference "full-screen" look = block ≈ one screen, card centred.
 
-### Making the modal fill the whole screen on large monitors — the empty-lines spacer
+### The first screen: a Cover page header, not a tall section (preferred)
 
-The embed tile is a **fixed pixel height** (~720–890px). On a large/tall monitor the section is only that tall, so the age-gate sits in a short band with white/blue space below it instead of covering the screen. To make the modal section reach roughly a full large-screen viewport, **add a native Text box in the same section as the modal embed and fill it with empty line breaks** (blank lines, nothing else). That empty text block is ~1350px tall, which grows the section to ≈ one big-screen viewport height, so the age-gate covers the whole screen on large displays while the embed's `min-height:100%` centering keeps the card in the middle.
+**This is the approved shape for a full-screen age-gate/CTA — use it unless the user wants something else.**
+A first screen that fills the viewport, has a **scroll-down arrow** and a background that **parallaxes**
+(moves at half the scroll speed) is NOT a section with a background image — sections render
+`background-attachment: scroll`, no arrow, no parallax. It is the **Page header set to type `Cover`**,
+with the modal embed sitting *inside* that header. Verified against a production build
+(`sites.google.com/view/xcasino-hu-portal/kezdolap`, mirrored from `betsson-com-information`).
 
-**Always do this whenever you build an age-gate / 18+ / CTA modal** — it's part of the modal recipe, not optional.
+What Cover gives you for free: height = viewport minus nav bar, a native `[aria-label="Scroll down"]`
+chevron at the bottom, and the parallax (scroll 300px → the `.IFuOkc` background layer moves 150px).
 
-**Verified recipe** (measured on a production build, `sites.google.com/view/veikkaus-info`): a plain **Text box** left at **Normal text (16px, line-height normal)** — NOT a heading, don't restyle it — with **24 blank line breaks (25 lines total)**. That yields a text block ≈ **1348px** tall, section ≈ **1452px**, with the modal embed (~888px) layered in the same section; its card centres over the tall area and the age-gate fills a large monitor. Match this: ~24 empty lines at default 16px.
+Build order:
+1. Hover the strip just under the site nav → **Add header** → on the header toolbar **Header type → Cover**.
+2. **Image → Upload** the full-screen photo (1920×1080; darken it so white text stays readable).
+3. Clear the header title text (click it, `Ctrl+A`, `Delete`) — the modal should be the only thing that reads.
+4. Put the modal **Embed** inside the header, then size it with the normal handles (e.g. 944×620 in the editor).
 
-How to build it:
-1. Insert the modal **Embed** into a section (its own, ideally the first section), size/center as above.
-2. Into the **same section**, add a **Text box** (Insert → Text box), click in, leave it at Normal text, and add **24 blank lines** — press `Enter` 24 times (or plain-paste a string of 24 newlines). Leave every line empty:
-   ```js
-   // caret in the empty text tile of the modal section:
-   for (let i=0;i<24;i++){ await page.keyboard.press('Enter'); await page.waitForTimeout(60); }
-   ```
-   Keep the block empty (no visible text) so it reads as pure vertical spacer behind/around the transparent embed.
-3. Verify on the live/preview page at a tall viewport (e.g. 1440×1000): the modal section should fill the screen with the card centred. Tune by adding/removing blank lines (each ≈ 54px at Normal text) toward a section height ≈ one viewport.
+⚠️ **Two of these steps cannot be automated** — verified across five approaches (real mouse click,
+`locator.click`, `dblclick`, focus + Enter/Space, synthetic `MouseEvent` dispatch):
+- the **Add header** button never fires;
+- **Insert → Embed with the header selected drops the block at the END of the page**, not into the header.
 
-Don't rely on this to be pixel-exact across every monitor — 24 lines targets "≈ one large viewport", which is what makes the age-gate read as full-screen. On phones the section still scales down proportionally (fine — the card stays centred and readable).
+Hand those two gestures to the user (~20 s): `playwright-cli -s=gsites close` → launch a normal Chrome
+on the same profile (`Start-Process chrome.exe -ArgumentList '--user-data-dir=<profile>','<edit URL>'`)
+→ ask them to (a) click **Add header** and (b) drag the modal block by its ⠿ handle up into the header
+→ they close Chrome → reopen the Playwright session and carry on. Everything else (Header type, Image
+upload, clearing the title, resizing and replacing the embed's code) is fully scriptable.
+
+Two useful differences once the embed lives in the header:
+- replacing its HTML **keeps the block's size** (in an ordinary section a code swap resets it);
+- the section height is owned by Cover, so the empty-lines spacer below becomes unnecessary.
+
+⚠️ Keep the Playwright viewport at **1440×900 for every editor action**. Leaving it at a phone size
+(e.g. after previewing the modal at 390px) silently breaks resizing and leaves the Embed dialog stuck
+with its Next/Save buttons off-screen.
+
+### Legacy: the empty-lines spacer (only when there is no Cover header)
+
+If the modal must live in a normal section (no header on the page), the embed tile is a fixed pixel
+height and leaves dead space under it on tall monitors. Fill the same section with a native **Text box**
+at Normal text holding **24 blank lines** (≈1348px, section ≈1452px), so the age-gate reads as
+full-screen while `min-height:100%` keeps the card centred:
+
+```js
+// caret in the empty text tile of the modal section:
+for (let i=0;i<24;i++){ await page.keyboard.press('Enter'); await page.waitForTimeout(60); }
+```
+
+Prefer the Cover header above; reach for this only as the fallback.
+
+
+### Fixed modal geometry for this series
+
+Client-set, do not re-invent per site: the embed tile is **760×968** in the editor at a 1440 viewport
+(≈760×863 on the published page) and the card inside is **400×343** (ratio ≈1.17). Size the card with
+`max-width:400px` plus `clamp(min, Xvh, max)` for every inner value, and check it in an iframe at both
+the desktop tile and the phone tile (352×448) before handing it over. The background photo under it is
+HD and darkened with black at 0.8 — baked into the uploaded file, not an overlay inside the embed
+(the embed is transparent, so the header photo shows through as-is).
 
 ## Centering the card: `min-height:100%`, NOT `position:fixed`
 
@@ -111,42 +155,89 @@ This is the key content-side rule. Sites **scales/transforms** embeds across bre
 
 `html,body{height:100%}` → body = iframe height; `#wrap{min-height:100%}` = iframe height; flex centres the card at **any** height, and survives Sites' scaling. Only the button/CTA should be an `<a>` if the user wants "only the button clickable"; keep the rest non-link.
 
-## Reference age-gate modal — the approved recipe (use this exact shape for every new site)
+## Reference age-gate modal — the approved shape (start from this for every new site)
 
-This is the finalized, user-approved age-gate from production (`sites.google.com/view/veikkaus-info`). New sites should get **this same modal** — same structure, same responsive approach — only swapping copy, colours and the button URL. Paste it as the modal Embed, drop it into its own first section, and add the 24-blank-line spacer (above) so the section fills a large screen.
+The current approved card (production: `sites.google.com/view/xcasino-hu-portal/kezdolap`). It replaced
+an earlier white centred card — a client rejected that one as "too similar to the previous site", so treat
+the *structure* below as the baseline and always re-skin the colours per brand.
 
-Two things that make it the "good" version:
-- **No bottom help-text line.** An earlier version had a `#note` "gambling can be addictive… helpline" line under the button; it was **removed** — the card is just badge → heading → subtext → button. Keep it that lean. (Any legal/18+ helpline line lives in the site's own bottom bar, not inside the modal card.)
-- **Tight lower clamp bounds for adaptation.** Every size is `clamp(min, Xvh|vw, max)` and the **`min` is deliberately small** so that when Sites scales the iframe down on short/phone viewports the card compacts instead of overflowing: badge `clamp(26px,8vh,68px)`, card padding starting at `10px`, subtext `clamp(12px,1.9vh,15.5px)`. The `vh` middle term ties every element to the (tall) iframe height so it scales together. No `<script>` scaler is used or needed — the clamps do the adaptation.
+**Hard rule — `target="_top"` is forbidden, everywhere.** No link inside any embed on a Google Site
+may carry `target="_top"` (and by default no `target` at all — not `_blank`, not `_parent`). Write plain
+`<a href="…">`. `_top` blows the sandboxed iframe out into the whole browser tab, which is exactly the
+behaviour the client rejected; leaving `target` off keeps navigation in the normal, expected context.
+This applies to the age-gate button and to every other link you ever put in an embed.
+
+Shape: a **dark horizontal panel** over the header photo — logo + `18+` on the left, a thin vertical
+accent rule, the age question on the right, and the CTA **below both columns, full panel width**.
+Two L-shaped accent corners (`::before` / `::after`) sit on opposite corners; radius stays small (4px).
+
+Content rules that came from the client and stay:
+- the card holds **only** logo, `18+`, the question and the button — no explanatory paragraph, no helpline line;
+- the button carries **no `target` attribute at all** — see the hard rule below;
+- its `href` is **always the full absolute URL of this same site** — `https://sites.google.com/view/<address>/<home-slug>` —
+  never `#`, never a relative path, never another domain. Sites drops a bare `#`, and a relative path resolves
+  against the embed's sandbox origin (`*.googleusercontent.com`), not the site. Note the home slug follows the
+  page's custom path (e.g. `/kezdolap`), so set the custom paths **before** writing the modal HTML;
+- the CTA spans the full width under both columns, not tucked beside the heading.
+
+Sizing rules that keep it alive on phones:
+- **never stack the card into a column on narrow screens.** The embed keeps its aspect ratio, so on a
+  phone the iframe becomes short (1154×760 → 352×231); a vertical stack does not fit that height and
+  gets clipped. Keep the row horizontal and let the `clamp()` minimums shrink it.
+- every size is `clamp(small-min, Xvh|vw, max)` — the `vh` middle term ties the card to the iframe height.
 
 ```html
 <style>
 *{box-sizing:border-box}
 html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden}
 #wrap{min-height:100%;width:100%;display:flex;align-items:center;justify-content:center;
-  padding:clamp(8px,2.5vh,22px) clamp(8px,3vw,24px);
-  font-family:"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
-#card{width:100%;max-width:620px;background:#fff;border-radius:8px;
-  box-shadow:0 18px 48px rgba(0,0,0,.22);
-  padding:clamp(10px,4.4vh,40px) clamp(10px,4vw,44px) clamp(10px,3.6vh,34px);text-align:center}
-#badge{width:clamp(26px,8vh,68px);height:clamp(26px,8vh,68px);margin:0 auto clamp(14px,2.6vh,22px);border-radius:50%;
-  background:#0004FF;color:#fff;font-size:clamp(11px,2.6vh,22px);font-weight:700;display:flex;align-items:center;justify-content:center}
-#h{margin:0 0 clamp(10px,1.8vh,16px);font-size:clamp(19px,3.6vh,29px);font-weight:700;color:#202227;line-height:1.2;letter-spacing:-.4px}
-#sub{margin:0 0 clamp(18px,3vh,28px);font-size:clamp(12px,1.9vh,15.5px);line-height:1.5;color:#707782}
-#btn{display:block;background:#0004FF;color:#fff;text-decoration:none;border-radius:28px;
-  padding:clamp(12px,1.9vh,17px) clamp(18px,3vw,28px);font-size:clamp(13.5px,1.9vh,16px);font-weight:600}
+  padding:clamp(8px,2.5vh,24px) clamp(10px,3vw,28px);
+  font-family:Lato,"Segoe UI",system-ui,-apple-system,Roboto,Arial,sans-serif;-webkit-font-smoothing:antialiased}
+#panel{position:relative;width:100%;max-width:680px;display:flex;flex-direction:column;gap:clamp(9px,2.2vh,20px);
+  padding:clamp(10px,5vh,52px) clamp(12px,3.6vw,48px);
+  background:linear-gradient(135deg,rgba(48,20,44,.94),rgba(20,9,18,.96));
+  border:1px solid rgba(236,0,140,.55);border-radius:4px;
+  box-shadow:0 0 0 1px rgba(231,230,20,.14) inset, 0 26px 70px rgba(0,0,0,.55)}
+#panel::before,#panel::after{content:"";position:absolute;width:clamp(12px,3.4vh,34px);height:clamp(12px,3.4vh,34px);
+  border:2px solid #e7e614}
+#panel::before{top:-1px;left:-1px;border-right:0;border-bottom:0}
+#panel::after{bottom:-1px;right:-1px;border-left:0;border-top:0}
+#row{display:flex;align-items:center;gap:clamp(10px,2.6vw,34px);width:100%}
+#left{flex:0 0 auto;display:flex;flex-direction:column;align-items:center;gap:clamp(4px,1vh,10px)}
+#logo{width:clamp(30px,12vh,104px);height:clamp(30px,12vh,104px);display:block}
+#age{font-size:clamp(11px,3.4vh,30px);font-weight:900;letter-spacing:.06em;color:#e7e614;line-height:1}
+#rule{flex:0 0 1px;align-self:stretch;background:linear-gradient(180deg,transparent,rgba(236,0,140,.75),transparent);
+  min-height:clamp(34px,14vh,150px)}
+#right{flex:1 1 auto;min-width:0;text-align:left}
+#h{margin:0;font-size:clamp(13px,4vh,34px);font-weight:900;color:#fff;line-height:1.18;
+  letter-spacing:-.2px}
+#btn{display:block;text-align:center;color:#fff;text-decoration:none;font-weight:900;letter-spacing:.08em;
+  font-size:clamp(9.5px,1.8vh,15px);padding:clamp(7px,2.1vh,17px) clamp(12px,3.4vw,38px);
+  border:2px solid #ec008c;background:transparent;transition:background .18s ease,color .18s ease}
+#btn:hover,#btn:focus{background:#ec008c;color:#fff}
 </style>
 <div id="wrap">
-  <div id="card">
-    <div id="badge">18+</div>
-    <h2 id="h">Oletko täyttänyt 18 vuotta?</h2>
-    <p id="sub">Vahvista ikäsi jatkaaksesi. Sivusto on ainoastaan tiedottava esittely, eikä se järjestä rahapelejä.</p>
-    <a id="btn" href="https://sites.google.com/view/&lt;this-site&gt;/home" aria-label="…">Kyllä, olen täyttänyt 18 vuotta</a>
+  <div id="panel">
+    <div id="row">
+      <div id="left">
+        <img id="logo" src="LOGO_DATA_URI" alt="<brand>">
+        <span id="age">18+</span>
+      </div>
+      <div id="rule"></div>
+      <div id="right">
+        <h2 id="h"><AGE QUESTION IN SITE LANGUAGE></h2>
+      </div>
+    </div>
+    <a id="btn" href="https://sites.google.com/view/<this-site>/<home-slug>"><YES, I AM 18+ IN SITE LANGUAGE></a>
   </div>
 </div>
 ```
 
-Swap per site: `#badge`/`#btn` background to the brand colour, the heading/subtext/button copy to the site's language, and the `#btn` href to that site's own `/home` URL (a bare `#` is dropped by Sites — see internal-links note). Keep the clamp values and the no-`#note` structure as-is.
+Swap per site: the two brand colours (`#ec008c` accent / `#e7e614` secondary here), the panel gradient,
+the copy, the logo data-URI, and the `#btn` href — always the full `https://sites.google.com/view/<address>/<home-slug>`
+of the site being built. If the published address ends up different from the planned one (a good name is often
+taken), **re-edit the embed HTML with the real address** and re-check the button. Keep the structure, the clamp
+minimums and the no-stacking rule as they are.
 
 ## Full-bleed pattern/background behind the card
 
@@ -189,3 +280,22 @@ else{h.style.overflow='';b.style.width='';b.style.transform='';}}f();addEventLis
 ## Mobile reality
 
 The embed keeps its **aspect ratio** across breakpoints, so a desktop full-screen block becomes a proportional banner on mobile (not full-height) — this is exactly how reference sites behave too. Verify at 390px, but don't expect a fixed-px embed to be full-height on phones. The `vh`-based inner sizing and `min-height:100%` centering keep the card readable and centred at any size.
+
+## Getting the embed INTO the Cover header — what does NOT work (measured 08.09.2026, don't re-test)
+
+Three automated routes were tried on a fresh blank site; all leave the embed in a new section **under**
+the header (`section[0]` iframes = 0, `section[1]` iframes = 1):
+
+1. Header selected → Insert → Embed (known since 08.2026).
+2. **Caret placed inside the header's own title text box** (click the `[aria-label="Text"]` tile in
+   `section[0]`) → Insert → Embed → Embed code → Next → Insert. Same result: new section below.
+   (Manually this looks like it works because the user then drags; via CDP input it does not.)
+3. **Slow stepped drag** of the freshly inserted embed tile into the header — both from the tile's top
+   edge and from the left half of the selected tile's toolbar (`[aria-label="Tile"]`, next to `Remove`),
+   with 500 ms hold, 2 warm-up moves, 30–40 steps, 700 ms pause before `mouse.up`. The cursor over the
+   toolbar reads `pointer`, never a grab cursor; the tile stays where it was.
+
+So the **manual drag stays the one hand-off gesture** of a build: insert the embed right under the header
+(focus the first content section's bottom, then Insert → Embed), resize it, then close Playwright, open a
+normal Chrome on the same profile and ask the user to drag the block by its `⠿` grip into the header
+(~20 s). Everything after that (resize inside the header, HTML replacement, publish) is automated again.
