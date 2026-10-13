@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+html,body{margin:0;padding:0;height:100%;background:transparent;overflow:hidden}
+/* десктоп/планшет: карточка по центру фрейма; на телефоне (≤420px) остаётся прижатой к верху */
+@media (min-width:421px){ a{align-items:center!important} }
+/* узкие фреймы (телефон): чуть компактнее, но не миниатюрно */
+@media (max-width:420px){
+  a>div{padding:14px 14px 14px!important;border-radius:18px!important}
+  a>div>div:first-child{margin-bottom:8px!important}
+  a>div>div:first-child>span:first-child{font-size:20px!important}
+  a>div>div:first-child>span:last-child{font-size:11px!important}
+  a>div>h2{font-size:19px!important;margin-bottom:8px!important}
+  a>div>p{font-size:13px!important;line-height:1.35!important;margin-bottom:8px!important}
+  a>div>span[data-cta]{font-size:13px!important;padding:11px 10px!important;margin-top:12px!important}
+}
+</style>
+</head>
+<body>
+<a
+  href="https://sites.google.com/view/sisal-it--home/home"
+  aria-label="Sì, ho compiuto almeno 18 anni"
+  style="
+    position: fixed;
+    inset: 0;
+    z-index: 999999;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+    display: flex;
+    align-items: flex-start;
+    justify-content: center;
+    padding: clamp(12px, 3vw, 20px);
+    padding-top: clamp(16px, 4vw, 24px);
+    box-sizing: border-box;
+    overflow: hidden;
+    overscroll-behavior: none;
+    touch-action: none;
+    text-decoration: none;
+    cursor: pointer;
+  "
+>
+  <div
+    style="
+      position: relative;
+      width: 100%;
+      max-width: 520px;
+      max-height: calc(100vh - 32px);
+      max-height: calc(100dvh - 32px);
+      overflow: hidden;
+      overscroll-behavior: none;
+      padding: clamp(18px, 4vw, 26px) clamp(16px, 4vw, 28px) clamp(18px, 4vw, 26px);
+      box-sizing: border-box;
+      background:
+        radial-gradient(circle at 18% 0%, rgba(197, 185, 157, 0.12), transparent 42%),
+        linear-gradient(180deg, #20262A 0%, #161A1D 48%, #101214 100%);
+      border: 1px solid #344149;
+      border-radius: 26px;
+      text-align: center;
+      color: #B8BEC0;
+      box-shadow: 0 18px 40px rgba(3, 5, 7, 0.45);
+    "
+  >
+    <div
+      style="
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: clamp(10px, 2.5vw, 14px);
+        margin: 0 auto clamp(10px, 2.5vw, 12px);
+      "
+    >
+      <span
+        style="
+          flex: 0 0 auto;
+          color: #D56A63;
+          font-family: Figtree, 'Segoe UI', sans-serif;
+          font-size: clamp(22px, 5vw, 28px);
+          line-height: 1;
+          font-weight: 750;
+          letter-spacing: 0.04em;
+        "
+      >18+</span>
+      <span
+        style="
+          flex: 0 0 1px;
+          align-self: stretch;
+          min-height: 26px;
+          background: linear-gradient(180deg, rgba(115, 125, 127, 0), #737D7F, rgba(115, 125, 127, 0));
+        "
+      ></span>
+      <span
+        style="
+          color: #F1F0EB;
+          font-family: Fraunces, 'Times New Roman', serif;
+          font-size: clamp(10px, 3.2vw, 17px);
+          line-height: 1.25;
+          font-weight: 560;
+          letter-spacing: 0.005em;
+          text-align: left;
+        "
+      >Vivi il gioco con equilibrio e consapevolezza</span>
+    </div>
+    <div
+      style="
+        height: 2px;
+        margin: 0 0 clamp(10px, 2.5vw, 14px);
+        background: linear-gradient(90deg, rgba(197, 185, 157, 0.15), #C5B99D 30%, #C5B99D 70%, rgba(197, 185, 157, 0.15));
+      "
+    ></div>
+    <h2
+      style="
+        margin: 0 0 clamp(8px, 2vw, 12px);
+        color: #F1F0EB;
+        font-family: Fraunces, 'Times New Roman', serif;
+        font-size: clamp(20px, 5vw, 28px);
+        line-height: 1.2;
+        font-weight: 560;
+        letter-spacing: 0.01em;
+        text-transform: none;
+        overflow-wrap: anywhere;
+      "
+    >
+      Sei maggiorenne?
+    </h2>
+    <p
+      style="
+        margin: 0;
+        color: #B8BEC0;
+        font-family: Figtree, 'Segoe UI', sans-serif;
+        font-size: clamp(14px, 3.4vw, 16px);
+        line-height: 1.4;
+        font-weight: 450;
+        text-align: center;
+        overflow-wrap: anywhere;
+      "
+    >
+      Esplora i contenuti con responsabilità, conosci i tuoi limiti e mantieni il gioco sotto controllo.
+    </p>
+    <span
+      data-cta
+      style="
+        display: block;
+        width: 100%;
+        margin-top: clamp(16px, 4vw, 22px);
+        padding: clamp(12px, 3vw, 15px) 12px;
+        box-sizing: border-box;
+        border: 0;
+        border-radius: 8px;
+        background: #496878;
+        color: #FFFFFF;
+        font-family: Figtree, 'Segoe UI', sans-serif;
+        font-size: clamp(14px, 3.4vw, 16px);
+        line-height: 1.25;
+        font-weight: 650;
+        letter-spacing: 0.01em;
+        text-transform: none;
+      "
+    >
+      Esplora il sito
+    </span>
+  </div>
+</a>
+</body>
+</html>

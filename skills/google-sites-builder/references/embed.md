@@ -36,6 +36,19 @@ text tile in edit mode) it can land directly under the header instead — see
 
 Select the embed (center-click its iframe area — handles appear), click **Edit** (`[aria-label="Edit"]`), switch to the **Embed code** tab, replace the textarea, Next → Insert/Save. Selecting via a section-top click fails when the embed is the first section (the sticky header covers `sectionTop+60`) — center-click the iframe instead.
 
+⚠️ **Saving new code can reset the tile's size** (measured 17.09.2026: 782×530 → 621×321; on a second
+edit it survived) and it blanks the navbar's *site name*. So after every code edit: re-run `resize.js`
+with the intended W/H, re-check `dx` (centering), and refill the name — it is a real `input`, but it only
+exists after a **double-click** on the `Enter site name` text, and `insertText` does nothing there:
+
+```js
+await page.mouse.dblclick(x, y);                                  // the text right of the logo
+const inp = page.locator('input[aria-label="Site name"]').first(); // y > 60 = the one on the canvas
+await inp.click({force:true}); await inp.fill('Brand Name'); await page.keyboard.press('Tab');
+```
+
+The empty name **does** reach the published page (the header loses its wordmark), so never skip this.
+
 ## Resizing — and the fresh-session prerequisite
 
 **Before any resize/reorder, if handles feel dead, restart the browser** (see setup reference). Resize handles that show `ns-resize` but don't move the tile are the #1 symptom of the stuck editor; a fresh `close`+`open` fixes it. This is not optional — trying variations of the drag without restarting wastes enormous time.
@@ -94,7 +107,7 @@ Build order:
 3. Clear the header title text (click it, `Ctrl+A`, `Delete`) — the modal should be the only thing that reads.
 4. Put the modal **Embed** inside the header, then size it with the normal handles (e.g. 944×620 in the editor).
 
-⚠️ **Two of these steps cannot be automated** — verified across five approaches (real mouse click,
+⚠️ **(Superseded 12.10.2026: the drag is automated by `scripts/js/drag_embed_hdr.js`; keep the home header instead of Add header.)** Two of these steps could not be automated before — verified across five approaches (real mouse click,
 `locator.click`, `dblclick`, focus + Enter/Space, synthetic `MouseEvent` dispatch):
 - the **Add header** button never fires;
 - **Insert → Embed with the header selected drops the block at the END of the page**, not into the header.
@@ -132,10 +145,81 @@ Prefer the Cover header above; reach for this only as the fallback.
 
 Client-set, do not re-invent per site: the embed tile is **760×968** in the editor at a 1440 viewport
 (≈760×863 on the published page) and the card inside is **400×343** (ratio ≈1.17). Size the card with
-`max-width:400px` plus `clamp(min, Xvh, max)` for every inner value, and check it in an iframe at both
-the desktop tile and the phone tile (352×448) before handing it over. The background photo under it is
+`max-width` in `em` plus the one height-aware base from "Card height: one `em` ladder" below (a bare
+`clamp(min, Xvw, max)` per value is what produces the phone-side scrollbar), and run `popup_fit.py` before
+handing it over. The background photo under it is
 HD and darkened with black at 0.8 — baked into the uploaded file, not an overlay inside the embed
 (the embed is transparent, so the header photo shows through as-is).
+
+## The embed's background must be transparent
+
+An age-gate card in a Cover header sits **on top of the header photo**, so the embed document must not
+paint anything: `html,body{background:transparent}`. A body scrim (`rgba(7,5,4,.9)` and friends) renders
+as a visible dark rectangle around the card on the live page — the photo is already darkened in the
+uploaded file, the scrim only adds a box (seen on apollogames-cz-play, 17.09.2026). Keep the card itself
+opaque (its own gradient) and leave everything around it transparent.
+
+## Card height: one `em` ladder, and a fit check that is not optional
+
+The embed keeps its **aspect ratio**, so the phone does not give the card a narrower box — it gives a
+**shorter** one. A 782×530 tile becomes 352×239 at a 390px viewport and 287×195 at 320px. Sizing the inner
+values with width-only `clamp(11.5px, 2.8vw, 13.5px)` fails there: `vw` falls below the px floor, the type
+stops shrinking, and the card grows past the frame — Sites then shows a scrollbar **inside** the embed
+(measured on apollogames-cz-play: +31px at 352×288, +87px at 260×213).
+
+Fix the whole card to one base that watches height as well, and put every inner value in `em`:
+
+```css
+.card{
+  font-size: clamp(5.6px, min(3vw, 3.25vh), 13.5px);   /* desktop stays at the 13.5px cap */
+  max-width: 36em; padding: 1.7em 1.9em 1.5em; border-radius: 1.5em;
+}
+.age{font-size:1.55em;margin:0 0 .58em} h1{font-size:1.62em;line-height:1.26}
+.rule{margin:.95em 0} .lead{font-size:1.24em;margin:0 0 .62em}
+p.txt{font-size:1em;line-height:1.5;margin:0 0 .5em}
+.cta{font-size:1.14em;margin-top:1.25em;padding:.95em .8em;border-radius:.85em}
+@media (max-height:300px){ .card{padding:1.2em 1.4em 1.1em} .card::before,.card::after{display:none} }
+```
+
+Because the base is `min(3vw, 3.25vh)`, the card scales as a whole: nothing reflows, nothing clips, and the
+desktop rendering is unchanged (there `3.25vh` > the cap, so the cap wins).
+
+**Always verify with the script before the embed goes into the page** — the editor preview and a single
+screenshot will not catch it:
+
+```bash
+python <skill>/scripts/popup_fit.py _src/popup-cs.html 782:530
+#   iframe  scrollH clientH overflow card      → every `overflow` must be 0
+# 957x649       649     649        0  334
+# 287x195       195     195        0  146
+# OK: no scroll inside the embed
+```
+
+Second argument is the tile you actually set (`W:H`); the script derives the phone frames from that ratio.
+If a row shows `<= SCROLL`, lower the `clamp()` floor or tighten the `em` gaps — do not just make the tile
+taller, that only moves the problem to the next smaller phone.
+
+## Horizontal centering is NOT free — check `dx` after every resize (latloto-info, 11.09.2026)
+
+The embed's box is centred inside its section only if **both** edges sit symmetrically around the section
+centre. A resize that pulls only the right-middle handle keeps the left edge in place, so a tile that was
+centred at 621px wide ends up **80px right of centre** at 782px (≈100px on the live page, where the client
+had to drag it back by hand). This happens exactly after the manual drag into the Cover header, because the
+drop re-flows the tile into a narrower span and it has to be widened again.
+
+Rules:
+- `resize.js` now resizes **symmetrically**: right handle to `secCx + 380`, left handle to `secCx − 380`, then
+  the bottom handle to `+968`. Never grow from one side only.
+- After **any** resize or drag (yours or the user's) read the offset before moving on:
+  ```js
+  const s=[...document.querySelectorAll('section')].find(x=>x.querySelector('iframe'));
+  const r=s.querySelector('iframe').getBoundingClientRect(), q=s.getBoundingClientRect();
+  Math.round((r.x+r.width/2)-(q.x+q.width/2))   // dx — must be within ±8px
+  ```
+  `resize.js` reports it as `dx=` in `document.title` and flags `OFF-CENTER`. **Do not publish with |dx| > 8** —
+  fix it with the left handle, or hand the user a 5-second nudge, but never assume the box is centred because
+  the card inside the iframe is flex-centred (that only centres the card within the box, not the box itself).
+- On the live page confirm the same: iframe centre ≈ `innerWidth/2` at 1440 before calling the build done.
 
 ## Centering the card: `min-height:100%`, NOT `position:fixed`
 
@@ -155,7 +239,53 @@ This is the key content-side rule. Sites **scales/transforms** embeds across bre
 
 `html,body{height:100%}` → body = iframe height; `#wrap{min-height:100%}` = iframe height; flex centres the card at **any** height, and survives Sites' scaling. Only the button/CTA should be an `<a>` if the user wants "only the button clickable"; keep the rest non-link.
 
+## Popup with a button, no scroll — mandatory additions (client rule, 05.10.2026)
+
+Applies whenever the brief (ТЗ) says «попап с кнопкой без возможности скрола». Start from
+`templates/popup-reference.html` and add exactly this — the client did it by hand on `latloto-lv--info`,
+breakpoints and values are fixed (do not invent others):
+
+1. Give the card's parent — the full-screen `<a>` wrapper — an id or a class (`id="qeqe"` on latloto-lv--info);
+   the CSS below uses that id/class as its selector, `#qeqe` is only the example.
+2. Alignment: `align-items: flex-start` on that parent at every width — **remove** the template's
+   `@media (min-width:421px){ a{align-items:center!important} }` (the card is no longer centred on desktop;
+   the top padding below positions it).
+3. On the parent: `overflow-y: auto !important; overscroll-behavior: contain;`.
+4. In the `<style>` block:
+
+```css
+#qeqe {
+padding-top: 250px !important;
+}
+
+@media (max-width: 1440px) {
+#qeqe {
+padding-top: 200px !important;
+}
+}
+
+@media (max-width: 600px) {
+#qeqe {
+padding-top: 150px !important;
+}
+}
+```
+
+Everything else (card sizes, phone overrides, fade-in, texts, colours, `href`) stays as in the reference template.
+Check before inserting: the card bottom must stay inside the frame at the editor tile size and the phone frames
+(measure `a>div` `getBoundingClientRect().bottom` ≤ frame height — `popup_fit.py` cannot see it, because with
+`overflow:hidden` `scrollHeight` always equals `clientHeight`).
+
 ## Reference age-gate modal — the approved shape (start from this for every new site)
+
+> **Superseded 30.09.2026 — the current reference is `templates/popup-reference.html`** (sisal-it--home, client-approved).
+> Whole card is one `<a>` with inline styles, one sentence instead of two paragraphs, desktop centred / phone top-aligned,
+> phone `!important` overrides at ≤420px, tile 782×~940 in the editor. See SKILL.md hard requirement 3. The section below is
+> kept for history only; do not build new sites from it.
+
+
+> Sizes below are illustrative: take the **inner scale** from "Card height: one `em` ladder" above
+> (one `em` base, height-aware) and only keep the composition, palette slots and markup from here.
 
 The current approved card (production: `sites.google.com/view/xcasino-hu-portal/kezdolap`). It replaced
 an earlier white centred card — a client rejected that one as "too similar to the previous site", so treat
@@ -281,7 +411,7 @@ else{h.style.overflow='';b.style.width='';b.style.transform='';}}f();addEventLis
 
 The embed keeps its **aspect ratio** across breakpoints, so a desktop full-screen block becomes a proportional banner on mobile (not full-height) — this is exactly how reference sites behave too. Verify at 390px, but don't expect a fixed-px embed to be full-height on phones. The `vh`-based inner sizing and `min-height:100%` centering keep the card readable and centred at any size.
 
-## Getting the embed INTO the Cover header — what does NOT work (measured 08.09.2026, don't re-test)
+## Getting the embed INTO the Cover header — what did NOT work (08.09.2026) — SUPERSEDED, see UPDATE 12.10.2026 below: `scripts/js/drag_embed_hdr.js`
 
 Three automated routes were tried on a fresh blank site; all leave the embed in a new section **under**
 the header (`section[0]` iframes = 0, `section[1]` iframes = 1):
@@ -299,3 +429,19 @@ So the **manual drag stays the one hand-off gesture** of a build: insert the emb
 (focus the first content section's bottom, then Insert → Embed), resize it, then close Playwright, open a
 normal Chrome on the same profile and ask the user to drag the block by its `⠿` grip into the header
 (~20 s). Everything after that (resize inside the header, HTML replacement, publish) is automated again.
+
+### UPDATE 12.10.2026 — the drag DOES work (star-casino-cz-information): grab the tile's top strip
+
+The routes above failed because they grabbed the toolbar / tile centre and the drop target was outside the
+viewport. Working recipe (text tiles, image tiles AND the embed; scripts `_dragtxt2.tpl.js`, `_dragemb3.js`
+in `C:/OSPanel/domains/star-casino-cz-information-gsites/`):
+1. Insert the block normally (it lands as its own section). `setViewportSize(1440×1400)` and scroll so the
+   source tile top (~y 1000) and the visible part of the target (Cover header bottom half / target section's
+   last tile bottom) are both on screen — a drop at y<0 does nothing.
+2. Real-click the tile's upper part to select it, then probe `elementFromPoint(cx, top+2)` → `cursor: move`
+   (DIV.czDCbb strip). Images also report `move` at their centre.
+3. `mouse.down` there → two warm-up moves → 40–45 steps to the target → 800 ms → `mouse.up`. The emptied
+   source section disappears by itself. Inside a section every drop appends at the bottom.
+4. Then resize as usual (`resize.js` W=782,H=620 in a GIF Cover → dx=0).
+This also gives "all content in ONE section": build each tile as a new section and drag it into the first one
+(`buildpage.sh` with `JOIN=<section index>`), images get `_imgfix.tpl.js SEC=<n>` afterwards.

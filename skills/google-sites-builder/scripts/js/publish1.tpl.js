@@ -9,7 +9,7 @@ async (page) => {
   const inp = dlg.locator('input:visible').first();
   if (!(await inp.count())) { log.push('no input: '+(await dlg.innerText()).slice(0,120)); await page.evaluate(t=>document.title=t.slice(0,400), JSON.stringify(log)); return; }
   let chosen=null;
-  for (const c of __CANDS__) {
+  for (const c of __ADDRESSES__) {
     await inp.click(); await page.keyboard.press('Control+A'); await page.keyboard.press('Delete');
     await page.keyboard.type(c, {delay:45});
     await page.waitForTimeout(3800);

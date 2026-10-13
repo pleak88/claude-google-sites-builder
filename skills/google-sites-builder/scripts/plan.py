@@ -8,12 +8,14 @@ import io, json, sys, pathlib
 sys.path.insert(0, str(pathlib.Path(__file__).parent)); sys.path.insert(0, str(pathlib.Path.cwd()))
 from content import PAGES, SITE  # noqa
 
-STYLE = {"white": 1, "alt": 2, "blue": 3}
+STYLE = {"s1": 1, "s2": 2, "s3": 3, "img": "img"}
+PATTERN = ["left", "top"]
 
 
 def plan_page(page):
     tiles, cur, buf = [], 1, []
     lay = None
+    nlay = [0]
 
     def flush_text():
         nonlocal buf
@@ -24,7 +26,8 @@ def plan_page(page):
     def flush_lay():
         nonlocal lay
         if lay:
-            tiles.append({"kind": "layout", "style": cur, **lay})
+            tiles.append({"kind": "layout", "style": cur, "pattern": PATTERN[nlay[0] % len(PATTERN)], **lay})
+            nlay[0] += 1
             lay = None
 
     for kind, text in page["blocks"]:
@@ -50,7 +53,7 @@ if __name__ == "__main__":
     io.open("plan.json", "w", encoding="utf-8").write(json.dumps(out, ensure_ascii=False, indent=1))
     for path, d in out.items():
         desc = " ".join(
-            (f'L{t["style"]}' if t["kind"] == "layout" else f'T{t["style"]}({len(t["blocks"])})')
+            (f'L{t["style"]}{t["pattern"][0]}' if t["kind"] == "layout" else f'T{t["style"]}({len(t["blocks"])})')
             for t in d["tiles"]
         )
         print(f'{path:24s} {len(d["tiles"])} tiles: {desc}')

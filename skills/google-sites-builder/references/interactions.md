@@ -25,6 +25,14 @@ async page => {
 }
 ```
 
+### New page: two measured quirks (x3000-ee-info, 15.09.2026)
+
+- The `New page` FAB is only found while the **Pages** panel is open (`pgtab.js` first); with Insert/Themes
+  open `mkpage.tpl.js` finds no dialog and silently creates nothing — always assert the page list afterwards.
+- A new page is inserted **directly under Home, at the top of the list** (newest first). To get the nav
+  order right without the flaky drag, create the pages in **reverse** order. A page created twice by mistake
+  is removed via Pages → row `Page actions` → `Delete` (no confirmation dialog).
+
 Verify the page list afterwards:
 ```js
 await page.locator('input[aria-label="Page title"]').evaluateAll(els => els.map(e => e.value))
@@ -365,3 +373,29 @@ Pick with `random.Random(site_address).choice(['left','top','alternate'])` so th
 The image keeps the placeholder's aspect (≈16:9), so a 3:2 source is cropped top and bottom — centre
 the subject when generating it. This is the acceptable exception to the "no band crop" rule, because
 here the photo is a half-width column, not a full-bleed band.
+
+## Layout «фото сверху / текст снизу» — скрипты `t_img_a.tpl.js` + `t_img_b.tpl.js` (проверено 14.09.2026, betlegends)
+
+Шаг A (`t_img_a.tpl.js`): клик в низ последней контентной секции → Insert → **Images** → real-click `Upload` →
+из шелла `playwright-cli -s=gs upload <jpg>`. Картинка встаёт **своей секцией** в конец, размером ~300×200.
+Шаг B (`t_img_b.tpl.js`, параметры `H2`, `PS`, `STYLE`): двухфазный ресайз + Style + Text box с текстом.
+Что важно в геометрии: `.WB0DVd` даёт 0×0 — брать элемент плитки как `div` ~300×200 с аспектом ≈1.5 (класс
+`ZqMSce`); после растяжения правой ручкой до `secX+secW-60` (=944) **высота остаётся 200** (band-crop) — искать
+элемент шириной ~944 с минимальной высотой и тянуть его нижнюю ручку ровно с нижнего края (`ns-resize`, пробовать
+dy 0…3) до `w×800/1200`. Вьюпорт для шага B — 1440×1400. Итог на живом: 1154 px во всю колонку, кадр 3:2 целиком.
+В `mktile.py` серии тайл с `pattern:"top"` рендерит эти шаблоны вместо `t_lay_*`.
+
+## Footer sections may carry NO footer aria-label (slotsmagic-com-info, 14.09.2026)
+
+On a site built by someone else every `section` in the editor — the 4 footer sections included — reported
+`aria-label="Page header section"`, so `_common.js`'s `lastContentIdx()` (which skips `/footer/i`) returned the footer's
+last section and a text tile would have overwritten the © line. Before the first tile on a foreign site dump the
+sections; if the footer is not labelled, patch the rendered scripts to `lastContentIdx = sections.length - 1 - <footerCount>`
+and fill only the `[aria-label="Text"]` inside `section[lastContentIdx]` (not the last contenteditable on the page).
+
+## Header Image → Select picker does not open from Playwright (14.09.2026)
+
+With the window at 1440×1300 the header's Image menu shows Reset / Upload / Select, but a real click on `Select`
+(leaf text, parent menuitem, synthetic pointer chain) never opens the picker dialog — two failures, hand it to the user.
+Replacing the HTML of an embed that already sits in the Cover header (select iframe → `Edit` → Embed code → Next → Save)
+works and keeps the tile size, so a redesign of a page with an existing modal needs no manual drag at all.

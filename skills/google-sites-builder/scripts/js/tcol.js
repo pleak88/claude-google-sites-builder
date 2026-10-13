@@ -3,6 +3,6 @@ async (page) => {
     await page.mouse.move(b.x+b.width/2,b.y+b.height/2); await page.waitForTimeout(180);
     await page.mouse.down(); await page.waitForTimeout(120); await page.mouse.up(); return true; };
   const dlg = page.locator('[role=dialog]').last();
-  await rc(dlg.locator('*').filter({ hasText: /^Custom colors$/ }).last());
+  await rc(dlg.locator('*').filter({ hasText: /^(Custom colors|Customised colours)$/ }).last());   // вкладка: en-US / en-GB
   await page.waitForTimeout(2000);
 }

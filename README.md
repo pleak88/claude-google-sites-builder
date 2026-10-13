@@ -1,5 +1,7 @@
 # google-sites-builder — скилл для Claude Code
 
+> **3.0.0 Beta** (13.10.2026) — конфиг `site.json` вместо правки скриптов, ожидания по условию вместо пауз, `cover.sh` / `publish.sh` с аудитом живого сайта, перенос любых тайлов drag'ом, шрифты через «More fonts», автопроверка занятости профиля. Бета: новые тайминги проверены синтаксически и на одном сайте, первая сборка на них — с контролем первой страницы.
+
 Собирает и публикует сайты на **Google Sites** (sites.google.com), управляя
 закрытым визуальным редактором через `playwright-cli`. У Google Sites нет API
 и загрузки HTML — всё делается кликами в залогиненном браузере, и этот скилл
@@ -21,9 +23,9 @@
 
 ## Процесс (правила, выстраданные практикой)
 
-1. **Префлайт.** Перед стартом один вопрос: «Не идёт ли сейчас другая сборка
-   Google Sites?» Один Chrome-профиль тянет только одну сборку; параллель — через
-   второй user-data-dir с тем же Google-аккаунтом.
+1. **Префлайт без вопросов.** `gs_preflight` сам проверяет, занят ли Chrome-профиль
+   (процесс `chrome.exe` на этом user-data-dir или playwright-сессия на другом сайте) и печатает
+   `FREE` / `BUSY: причина`. Один Chrome-профиль тянет только одну сборку.
 2. **Референс = спецификация.** Если дан референс, его структура/фон/футер
    обязательны. Копировать старые сайты запрещено — всегда чистый лист
    (исключение: пользователь сам указал сайт-пример с того же референса).
@@ -50,7 +52,13 @@
 | Ручки ресайза «мёртвые» | закрыть и заново открыть браузер |
 | Правка «на живом» сайте не работает | редактировать только `/d/<siteId>/p/<pageId>/edit` |
 | Модалка 18+ | единственный embed в Cover-хедере, карточка `min-height:100%`, плитка 760×968 → сетка 782×970 |
-| Embed в хедер не встаёт автоматикой | проверено трижды (выделенный хедер, каретка в тексте хедера, пошаговый drag) — один ручной drag ⠿, остальное скрипты |
+| Embed в хедер / тайл в другую секцию | drag за верхнюю кромку тайла (курсор `move`) при высоком вьюпорте — `drag_embed_hdr.js`, `drag_src.tpl.js SRC DST POS`; ручного шага нет |
+| Пустой Title над модалкой | тайл удалять через тулбар Remove (`rmhdrtitle.js`), а не очищать |
+| Строка 18+ / байлайн не красятся темой на image-фоне | тулбар Text color: тройной клик по строке → свотч `[aria-label="#hex"]` (`textcolor.tpl.js`) |
+| В списке шрифтов нет Inter / Poppins | More fonts → поиск → выбрать → Done, затем выбор в дропдауне клавиатурой (`theme_font_more.tpl.js`) |
+| Кнопки и ссылки в цвете пресета | seed-цвета мастера (Color 3 = кнопки/ссылки) + `theme_recolor.tpl.js FROM TO` |
+| Картинку заменить без удаления тайла | второй клик по тайлу → More editing options → Replace image → Upload (`img_replace.tpl.js`) |
+| Google-форма не принимает ответы | новые Forms требуют Publish (`form_create.tpl.js` → `form_publish.js` → `form_link.js` → `button_insert.tpl.js`) |
 | Фото слева / текст справа | Insert → Content blocks → `Image and caption`; тайлы дедуплицировать по y, заливать сверху вниз с перезамером |
 | Лого и фавиконка | визард темы их не грузит; лого — Themes → Edit → Images, фавиконка — Settings → Brand images |
 | Футер «не красится» | сначала клик по оверлею **Edit footer**, потом палитра как у секции (Style / картинка) |
@@ -69,12 +77,19 @@ claude plugin install google-sites-builder@google-sites-builder
 
 Либо просто скопируйте `skills/google-sites-builder/` в `~/.claude/skills/`.
 
-Шаг сборки — один скрипт (сессия `playwright-cli` привязана к папке, откуда её открыли):
+Проект = папка с `site.json` (сессия, профиль, siteId, адрес, id страниц, режим секций, цвета, строки,
+маркеры, параметры аудита, `cover`) и `_src/` (content.py, plan.json, картинки, popup.html). Скрипты скилла
+читают конфиг сами и не копируются в проект:
 
 ```
+source <skill>/scripts/gs.sh && gs_preflight                     # FREE / BUSY
 python <skill>/scripts/plan.py                                   # content.py → plan.json
-python <skill>/scripts/render.py js/t_text.tpl.js _t.js BLOCKS='[...]' STYLE=2
-playwright-cli -s=gs run-code --filename _t.js; playwright-cli -s=gs --raw eval "() => document.title"
+<skill>/scripts/buildpage.sh bet-types                           # страница целиком (режим секций из site.json)
+<skill>/scripts/bgpage.sh bet-types 0                            # фон секций
+<skill>/scripts/cover.sh                                         # Cover-хедер + модалка одной командой
+<skill>/scripts/publish.sh                                       # публикация + Public + 30-секундный аудит живого сайта
+<skill>/scripts/publish.sh re | audit                            # переопубликовать / только аудит
+python <skill>/scripts/render.py js/t_text.tpl.js _t.js BLOCKS='[...]' STYLE=2   # любой шаг вручную; __C_x__/__PAGE_x__ берутся из site.json
 ```
 
 ## Требования
@@ -85,6 +100,28 @@ playwright-cli -s=gs run-code --filename _t.js; playwright-cli -s=gs --raw eval 
 - Python + Pillow для генерации фоновых паттернов (опционально)
 
 ## Версии
+
+- **3.0.0 Beta** (13.10.2026)
+  - **Конфиг вместо sed**: `site.json` + `scripts/gs.sh` (`gs_open/goto/run/title/eval/upload/render`), `render.py` подставляет
+    `__SESSION__ __SITEID__ __PAGE_<slug>__ __C_<color>__ __S_<string>__` из конфига; `buildpage.sh`, `bgpage.sh`, `mktile.py`,
+    `cover.sh`, `publish.sh` живут в скилле и запускаются из папки проекта без правок.
+  - **Ожидания по условию**: `until()` в `_common.js`, короче клики/вставка/стили, после `upload` опрос появления data-URI
+    вместо `sleep 8`; бюджет текстового тайла ≈ 25–35 с вместо ~65.
+  - **Аудит живого сайта** в `publish.sh` (`js/audit_live.tpl.js`, ~30 с, anon-сессия): статусы, h1, фавикон, ширина картинок,
+    чужие цвета, число секций по режиму, в хедере только модалка, красная строка 18+, байлайн под H1 по центру цветом акцента.
+    Сборка не закончена, пока `AUDIT FAILS` не пуст.
+  - **Режим секций** `sections: separate | one` для ВСЕХ страниц: одна секция обязательна, если так сделан референс или просит
+    клиент; иначе разные. В режиме `one` тайлы переносятся в первую секцию сразу (`drag_src.tpl.js`), без слияния потом.
+  - **Перенос тайлов автоматикой** (12–13.10.2026): любой тайл (текст, картинка, embed) — drag за верхнюю кромку при вьюпорте
+    до 4000 px; `drag_embed_hdr.js`, `drag_src.tpl.js SRC DST POS=end|beforeLast`, `imgfix.tpl.js`.
+  - **Cover-хедер одной командой** `cover.sh`; пустой тайл Title удаляется (`rmhdrtitle.js`), Site name очищается.
+  - **Тема**: `theme_font_more.tpl.js` (More fonts → поиск → Done, дропдаун клавиатурой), seed-цвета мастера с проверкой
+    (`tcol2.tpl.js`, вкладка «Custom colors»/«Customised colours»), `theme_recolor.tpl.js`, дампы стилей и свотчей.
+  - **Покраска строк** `textcolor.tpl.js` (18+ красная, байлайн акцентом) — тема на image-фоне строки не красит.
+  - **Футер** `footer_fill.tpl.js` (тайл становится редактируемым после real-click); форму из прототипа не упрощать молча.
+  - **Google-форма** по референсу: `form_create.tpl.js` → `form_publish.js` → `form_link.js` → `button_insert.tpl.js`.
+  - **Замена картинки** `img_replace.tpl.js`; **автопрефлайт** `gs_preflight` вместо вопроса о занятом профиле.
+  - Правила клиента 13.10.2026: порядок текстов = прототип; контакт-форма — если есть у референса; одна секция — если так в референсе.
 
 - **2.0.0** (08.09.2026)
   - **Hard requirements** серии (раздел в SKILL.md): только модалка через embed; 3–4 блока в секции;
